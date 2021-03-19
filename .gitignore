@@ -122,3 +122,11 @@ android/configs/android-*.cfg
 #Ignoring Android.bp link file
 #
 Android.bp
+build.sh
+ak3.sh
+cc.sh
+menuconfig.sh
+zipsigner.jar
+arch/arm64/configs/darkonahunter_defconfig
+error.log
+compiler
