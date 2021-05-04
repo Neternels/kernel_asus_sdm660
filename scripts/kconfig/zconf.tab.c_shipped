@@ -208,7 +208,7 @@ typedef union YYSTYPE
 
 
 /* Include zconf.hash.c here so it can see the token constants. */
-#include "zconf.hash.c"
+// #include "zconf.hash.c"
 
 
 

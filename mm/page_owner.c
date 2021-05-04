@@ -237,7 +237,7 @@ print_page_owner(char __user *buf, size_t count, unsigned long pfn,
 	};
 
 	count = count > PAGE_SIZE ? PAGE_SIZE : count;
-	kbuf = kvmalloc(count, GFP_KERNEL);
+	kbuf = kmalloc(count, GFP_KERNEL);
 	if (!kbuf)
 		return -ENOMEM;
 
