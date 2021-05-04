@@ -23,7 +23,7 @@
 
 /* Trace Points */
 #define CREATE_TRACE_POINTS
-#include "rmnet_trace.h"
+// #include "rmnet_trace.h"
 
 /* Module Parameters */
 unsigned int rmnet_log_level = RMNET_LOG_LVL_ERR | RMNET_LOG_LVL_HI;

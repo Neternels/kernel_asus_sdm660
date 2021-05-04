@@ -2167,7 +2167,7 @@ struct elem_info wlfw_athdiag_write_resp_msg_v01_ei[] = {
 		.offset         =
 		offsetof(struct wlfw_athdiag_write_resp_msg_v01,
 			 resp),
-		.ei_array      = qmi_response_type_v01_ei,
+		.ei_array      = get_qmi_response_type_v01_ei(),
 	},
 	{
 		.data_type      = QMI_EOTI,

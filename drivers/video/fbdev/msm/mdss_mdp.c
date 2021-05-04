@@ -1,7 +1,7 @@
 /*
  * MDSS MDP Interface (used by framebuffer core)
  *
- * Copyright (c) 2007-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2007-2018, The Linux Foundation. All rights reserved.
  * Copyright (C) 2007 Google Incorporated
  *
  * This software is licensed under the terms of the GNU General Public
@@ -105,10 +105,9 @@ static struct mdss_panel_intf pan_types[] = {
 	{"edp", MDSS_PANEL_INTF_EDP},
 	{"hdmi", MDSS_PANEL_INTF_HDMI},
 };
-#ifndef CONFIG_MACH_ASUS_X00T
-static
-#endif
+/* Huaqin modify for Modification sequence by qimaokang at 2018/05/31 start */
 char mdss_mdp_panel[MDSS_MAX_PANEL_LEN];
+/* Huaqin modify for Modification sequence by qimaokang at 2018/05/31 end */
 
 struct mdss_hw mdss_mdp_hw = {
 	.hw_ndx = MDSS_HW_MDP,
@@ -731,7 +730,7 @@ int mdss_bus_scale_set_quota(int client, u64 ab_quota, u64 ib_quota)
 
 	mdss_res->ab[client] = ab_quota;
 	mdss_res->ib[client] = ib_quota;
-//	trace_mdp_perf_update_bus(client, ab_quota, ib_quota);
+	trace_mdp_perf_update_bus(client, ab_quota, ib_quota);
 
 	for (i = 0; i < MDSS_MAX_BUS_CLIENTS; i++) {
 		if (i == MDSS_MDP_NRT) {
@@ -2389,7 +2388,6 @@ static u32 mdss_mdp_scaler_init(struct mdss_data_type *mdata,
 			return -EINVAL;
 		}
 		mdata->scaler_off->ndest_scalers = len/sizeof(u32);
-		BUG_ON(mdata->scaler_off->ndest_scalers > 2);
 
 		mdata->scaler_off->dest_scaler_off =
 			devm_kzalloc(dev, sizeof(u32) *
@@ -3121,8 +3119,7 @@ static int mdss_mdp_probe(struct platform_device *pdev)
 		MDSS_MDP_REG_SPLIT_DISPLAY_EN);
 	if (intf_sel != 0) {
 		for (i = 0; i < 4; i++)
-			num_of_display_on +=
-				(((intf_sel >> i*8) & 0x000000FF) ? 1 : 0);
+			num_of_display_on += ((intf_sel >> i*8) & 0x000000FF);
 
 		/*
 		 * For split display enabled - DSI0, DSI1 interfaces are
@@ -5035,8 +5032,8 @@ void mdss_mdp_set_ot_limit(struct mdss_mdp_set_ot_params *params)
 	if (ot_lim == 0)
 		goto exit;
 
-//	trace_mdp_perf_set_ot(params->num, params->xin_id, ot_lim,
-//		is_vbif_nrt);
+	trace_mdp_perf_set_ot(params->num, params->xin_id, ot_lim,
+		is_vbif_nrt);
 
 	mutex_lock(&mdata->reg_lock);
 
@@ -5632,11 +5629,9 @@ static int __init mdss_mdp_driver_init(void)
 	return 0;
 
 }
-
-#ifdef CONFIG_MACH_ASUS_X00T
+/* Huaqin modify for Modification sequence by qimaokang at 2018/05/31 start */
 EXPORT_SYMBOL(mdss_mdp_panel);
-#endif
-
+/* Huaqin modify for Modification sequence by qimaokang at 2018/05/31 end */
 module_param_string(panel, mdss_mdp_panel, MDSS_MAX_PANEL_LEN, 0);
 MODULE_PARM_DESC(panel,
 		"panel=<lk_cfg>:<pan_intf>:<pan_intf_cfg>:<panel_topology_cfg> "

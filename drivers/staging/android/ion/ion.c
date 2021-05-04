@@ -195,8 +195,6 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 	if (!buffer)
 		return ERR_PTR(-ENOMEM);
 
-	INIT_LIST_HEAD(&buffer->iommu_data.map_list);
-	mutex_init(&buffer->iommu_data.lock);
 	buffer->heap = heap;
 	buffer->flags = flags;
 	kref_init(&buffer->ref);
@@ -296,7 +294,7 @@ static void _ion_buffer_destroy(struct kref *kref)
 	struct ion_heap *heap = buffer->heap;
 	struct ion_device *dev = buffer->dev;
 
-	msm_dma_buf_freed(&buffer->iommu_data);
+	msm_dma_buf_freed(buffer);
 
 	mutex_lock(&dev->buffer_lock);
 	rb_erase(&buffer->node, &dev->buffers);
@@ -585,17 +583,17 @@ static struct ion_handle *__ion_alloc(struct ion_client *client, size_t len,
 		/* if the caller didn't specify this heap id */
 		if (!((1 << heap->id) & heap_id_mask))
 			continue;
-//		trace_ion_alloc_buffer_start(client->name, heap->name, len,
-//					     heap_id_mask, flags);
+		trace_ion_alloc_buffer_start(client->name, heap->name, len,
+					     heap_id_mask, flags);
 		buffer = ion_buffer_create(heap, dev, len, align, flags);
-//		trace_ion_alloc_buffer_end(client->name, heap->name, len,
-//					   heap_id_mask, flags);
+		trace_ion_alloc_buffer_end(client->name, heap->name, len,
+					   heap_id_mask, flags);
 		if (!IS_ERR(buffer))
 			break;
 
-//		trace_ion_alloc_buffer_fallback(client->name, heap->name, len,
-//					    heap_id_mask, flags,
-//					    PTR_ERR(buffer));
+		trace_ion_alloc_buffer_fallback(client->name, heap->name, len,
+					    heap_id_mask, flags,
+					    PTR_ERR(buffer));
 		if (dbg_str_idx < MAX_DBG_STR_LEN) {
 			unsigned int len_left = MAX_DBG_STR_LEN-dbg_str_idx-1;
 			int ret_value = snprintf(&dbg_str[dbg_str_idx],
@@ -615,15 +613,15 @@ static struct ion_handle *__ion_alloc(struct ion_client *client, size_t len,
 	up_read(&dev->lock);
 
 	if (buffer == NULL) {
-//		trace_ion_alloc_buffer_fail(client->name, dbg_str, len,
-//					    heap_id_mask, flags, -ENODEV);
+		trace_ion_alloc_buffer_fail(client->name, dbg_str, len,
+					    heap_id_mask, flags, -ENODEV);
 		return ERR_PTR(-ENODEV);
 	}
 
 	if (IS_ERR(buffer)) {
-//		trace_ion_alloc_buffer_fail(client->name, dbg_str, len,
-//					    heap_id_mask, flags,
-//					    PTR_ERR(buffer));
+		trace_ion_alloc_buffer_fail(client->name, dbg_str, len,
+					    heap_id_mask, flags,
+					    PTR_ERR(buffer));
 		pr_debug("ION is unable to allocate 0x%zx bytes (alignment: 0x%zx) from heap(s) %sfor client %s\n",
 			len, align, dbg_str, client->name);
 		return ERR_CAST(buffer);
@@ -1192,7 +1190,7 @@ static struct sg_table *ion_map_dma_buf(struct dma_buf_attachment *attachment,
 					enum dma_data_direction direction)
 {
 	struct dma_buf *dmabuf = attachment->dmabuf;
-	struct ion_buffer *buffer = container_of(dmabuf->priv, typeof(*buffer), iommu_data);
+	struct ion_buffer *buffer = dmabuf->priv;
 	struct sg_table *table;
 
 	table = ion_dupe_sg_table(buffer->sg_table);
@@ -1324,7 +1322,7 @@ static const struct vm_operations_struct ion_vma_ops = {
 
 static int ion_mmap(struct dma_buf *dmabuf, struct vm_area_struct *vma)
 {
-	struct ion_buffer *buffer = container_of(dmabuf->priv, typeof(*buffer), iommu_data);
+	struct ion_buffer *buffer = dmabuf->priv;
 	int ret = 0;
 
 	if (!buffer->heap->ops->map_user) {
@@ -1360,14 +1358,14 @@ static int ion_mmap(struct dma_buf *dmabuf, struct vm_area_struct *vma)
 
 static void ion_dma_buf_release(struct dma_buf *dmabuf)
 {
-	struct ion_buffer *buffer = container_of(dmabuf->priv, typeof(*buffer), iommu_data);
+	struct ion_buffer *buffer = dmabuf->priv;
 
 	ion_buffer_put(buffer);
 }
 
 static void *ion_dma_buf_kmap(struct dma_buf *dmabuf, unsigned long offset)
 {
-	struct ion_buffer *buffer = container_of(dmabuf->priv, typeof(*buffer), iommu_data);
+	struct ion_buffer *buffer = dmabuf->priv;
 
 	return buffer->vaddr + offset * PAGE_SIZE;
 }
@@ -1381,7 +1379,7 @@ static int ion_dma_buf_begin_cpu_access(struct dma_buf *dmabuf, size_t start,
 					size_t len,
 					enum dma_data_direction direction)
 {
-	struct ion_buffer *buffer = container_of(dmabuf->priv, typeof(*buffer), iommu_data);
+	struct ion_buffer *buffer = dmabuf->priv;
 	void *vaddr;
 
 	if (!buffer->heap->ops->map_kernel) {
@@ -1400,20 +1398,11 @@ static void ion_dma_buf_end_cpu_access(struct dma_buf *dmabuf, size_t start,
 				       size_t len,
 				       enum dma_data_direction direction)
 {
-	struct ion_buffer *buffer = container_of(dmabuf->priv, typeof(*buffer), iommu_data);
+	struct ion_buffer *buffer = dmabuf->priv;
 
 	mutex_lock(&buffer->lock);
 	ion_buffer_kmap_put(buffer);
 	mutex_unlock(&buffer->lock);
-}
-
-static int ion_dma_buf_get_flags(struct dma_buf *dmabuf,
-				 unsigned long *flags)
-{
-	struct ion_buffer *buffer = dmabuf->priv;
-	*flags = buffer->flags;
-
- 	return 0;
 }
 
 static struct dma_buf_ops dma_buf_ops = {
@@ -1427,7 +1416,6 @@ static struct dma_buf_ops dma_buf_ops = {
 	.kunmap_atomic = ion_dma_buf_kunmap,
 	.kmap = ion_dma_buf_kmap,
 	.kunmap = ion_dma_buf_kunmap,
-	.get_flags = ion_dma_buf_get_flags,
 };
 
 static struct dma_buf *__ion_share_dma_buf(struct ion_client *client,
@@ -1456,7 +1444,7 @@ static struct dma_buf *__ion_share_dma_buf(struct ion_client *client,
 	exp_info.ops = &dma_buf_ops;
 	exp_info.size = buffer->size;
 	exp_info.flags = O_RDWR;
-	exp_info.priv = &buffer->iommu_data;
+	exp_info.priv = buffer;
 
 	dmabuf = dma_buf_export(&exp_info);
 	if (IS_ERR(dmabuf)) {
@@ -1543,7 +1531,7 @@ static struct ion_handle *__ion_import_dma_buf(struct ion_client *client,
 		dma_buf_put(dmabuf);
 		return ERR_PTR(-EINVAL);
 	}
-	buffer = container_of(dmabuf->priv, typeof(*buffer), iommu_data);
+	buffer = dmabuf->priv;
 
 	if (lock_client)
 		mutex_lock(&client->lock);
@@ -1606,7 +1594,7 @@ static int ion_sync_for_device(struct ion_client *client, int fd)
 		dma_buf_put(dmabuf);
 		return -EINVAL;
 	}
-	buffer = container_of(dmabuf->priv, typeof(*buffer), iommu_data);
+	buffer = dmabuf->priv;
 
 	if (get_secure_vmid(buffer->flags) > 0) {
 		pr_err("%s: cannot sync a secure dmabuf\n", __func__);
